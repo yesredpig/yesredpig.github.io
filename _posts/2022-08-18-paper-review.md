@@ -10,11 +10,10 @@ Izacard, Gautier, et al. "Few-shot Learning with Retrieval Augmented Language Mo
 https://arxiv.org/pdf/2208.03299
 
 ## Preliminaries:
-- #### Retrieval Augmented architecture: REALM: Retrieval-Augmented Language Model Pre-Training (https://arxiv.org/abs/2002.08909)
-- <img height="450" src="C:\Users\LG\PycharmProjects\fig1.png" width="300"/>
+- Retrieval Augmented architecture: REALM: Retrieval-Augmented Language Model Pre-Training (https://arxiv.org/abs/2002.08909)
 - LLM이 가지고있는 parameter에 memorize한다는건 GPT3 처음 나왔을때 많은 discussion이 있었던 걸로 안다. GPT3 (이젠 오래된 것 같은데)가 1750억 parameter이고 데이터는 한 5000억 쯤 되는걸로 안다. 문제는 그 많은 parameter 중에 어디에 memorize된 정보를 가지고 예측을 하냐는거다. 어떤 문서에서 정답을 뽑아 낸건지에 대한 설명이 부족하다. 그래서 정답이 있는 document부터 뽑고 (Retireval) 그 안에서 NLP task를 수행하는 (Q&A 등) Retrieval Augmented architecture가 나온 것이다.
 
-- #### few-shot learning
+- few-shot learning
 - 이 논문에서 말하는 few-shot은 아마도 GPT3에서 예제로 나온 few-shot등을 말하는 것 같다. GPT3논문을 봐도 왜 few-shot이 잘나온지는 잘 모르겠었는데, 그걸 설명하려는 것 같다.
 
 
@@ -33,3 +32,7 @@ LLM이 여러 언어 테스크에서 좋은 성능을 낼 수 있는 것은 1) �
 ## Method
 
 ### Some great subheading (h3)
+
+## Figure
+REALM.fig1: 
+<center><img src="https://user-images.githubusercontent.com/16963245/185537814-e823358f-9f96-4dbd-bfd4-ddd4701fddec.png" width="50%" height="50%"></center>
