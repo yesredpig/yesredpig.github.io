@@ -56,3 +56,10 @@ theme: minima
 plugins:
  - jekyll-feed
  - jekyll-seo-tag
+
+# Math equation
+markdown: kramdown
+highlighter: rouge
+lsi: false
+excerpt_separator: "\n\n"
+incremental: false
