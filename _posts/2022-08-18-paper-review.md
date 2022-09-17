@@ -16,7 +16,7 @@ https://arxiv.org/pdf/2208.03299
 - LLM은 가지고있는 많은 parameter에 많은 양의 corpus로 부터 얻어낸 정보를 memorize하고, sub-task가 주어질 때 그 정보를 활용한다.  GPT3가 1750억 parameter쯤 되는데 그 많은 parameter 중에 어디에 memorize된 정보를 가지고 예측을 하는걸까? training data 중 어떤 문서에서 정답을 뽑아 낸건지에 대한 설명이 부족하다. 그래서 정답이 있는 document부터 뽑고 (Retireval) 그 문서 안에서 NLP task를 수행하는 (Q&A 등) Retrieval Augmented architecture가 나왔다.
 <center> 그림1. REALM architecture </center>
 <center><img src="https://user-images.githubusercontent.com/16963245/185537814-e823358f-9f96-4dbd-bfd4-ddd4701fddec.png" width="50%" height="50%"></center>
-
+Retrieval Augmented architecture: REALM: Retrieval-Augmented Language Model Pre-Training (https://arxiv.org/abs/2002.08909)
 
 
 ## Abstract
@@ -80,25 +80,92 @@ LM모델이 활용한 문서로 생성한 answer가 잘 맞으면 Retrieval한�
  - $p_{ATTN}$ : LM의 cross-attention에서 attention score와 value가지고 계산. $a_{n}\lVert v_{n} \rVert 2$값을 한 document에 대한 모든 attention head, layer, tokens의 평균을 구함. SOFTMAX operator를 통해 구한 값의 distribution $p_{ATTN}(d_{k})$를 구함. 
 
 #### 2) End-to-end training of Multi-Document Reader and Retriever (EMDR^2)
+기대값 최대화 (expectation-maximization algorithm)에서 영감을 받아 검색된 문서를 latent variable로 취급한다.  
+<center><img src="https://user-images.githubusercontent.com/16963245/190842129-b988f634-03d8-4c4d-b4ff-746ba616741c.png" width="50%" height="50%"></center>
+
+$p_{RETR}$는 ADist loss에서와 같이 검색된 top-K 문서에 대한 분포이고, $p_{LM}$ 과 비교하여 Retriever만 학습한다. 
+$p_{LM}$은 query, top K 문서가 주어졌을때, 해당 출력(a)의 확률로써, 결국 EMDR^2를 최대화 하는 document K를 잘 뽑도록 $p_{RETR}$을 학습시킨다. 
+
+#### 3) Perplexity Distillation (PDist)
+LM모델의 혼란도(perplexity)를 줄이도록 top K문서를 잘 뽑을 수 있게 Retriever를 학습. 
+<center><img src="https://user-images.githubusercontent.com/16963245/190842445-4e0d7cd8-43f8-4c8d-b09c-08fe8c0bb2fa.png" width="50%" height="50%"></center>
+Retriever의 문서 분포와 LM모델에 의한 문서의 사후 확률의 분포 차이 (KL divergence)를 최소 화 시킴. 
+
+#### 4) Leave-one-out Perplexity Distillation (LOOP)
+마지막으로 검색된 상위 k개 문서 중 하나를 제거할 때 언어 모델의 예측이 얼마나 나빠지는지를 기반으로 LOSS를 제안. 
+<center><img src="https://user-images.githubusercontent.com/16963245/190842646-deaa3422-2258-46bd-902b-e3d229720d9a.png" width="50%" height="50%"></center>
+
+각각의 k-1 문서의 log probability 계산함. 이를 위해 k-1 문서의 각 하위 집합에 대한 출력의 로그 확률을 계산하고 음수 값을 각 문서의 관련성 점수로 사용함. softmax 연산자를 사용하여 문서에 대한 확률 분포를 획득.
+그런 다음 이 분포와 리트리버로 얻은 분포 사이의 KL-divergence 최소화합니다.
 
 ### 2.3 Pretext tasks
-
-### 2.4 Retriever fine-tuning
+Retreiver과 LM을 동시에 학습하기 위한 un-supervised learning task 
+- Prefix language modeling: chunk of N words를 2개로 나누고 (N/2로 길이 동일하게), 첫번째 sub-sequence를 query로 나머지를 정답으로함. 1번째 문단으로 문서를 검색하고, 언어모델이 2번째 문단을 생성. 
+- Masked language modeling: chunk of N words에서 k개의 span (평균 3token)을 추출하고, 그 안의 15%를 masking하고 다른 특정 token으로 채워 넣음. masked query로 문서를 검색하고, 언어 모델은 masked span을 생성. 
+- Title to section generation: Wikipedia article과 section title을 입력으로 section 내용을 생성하는 task. 
+- 
+### 2.4 Efficient retriever fine-tuning
+Retrieval은 문서에 대한 index를 활용하여 검색이 빨라질 수 있다. 이 연구에서 retreiver과 LM을 같이 학습시키면 문서에 대한 index를 매번 업데이트 시켜주어야한다. 많은 문서의 index에 대한 업데이틑 computational expensive. 이를 해결하기 위한 효율적인 방법을 제안
+- Full index update: (계산식은 생략) 3,700만 개의 문서(위키피디아 인덱스의 크기)가 포함된 인덱스를 사용한다면, batch size 64로 20개의 검색된 문서를 매번 1000 step마다 index를 refresh 시킨다면, 30%의 오베데드 발생 
+- Re-ranking: K*10개 정도 큰 범위의 L개 문서 (전체 문서보단 적은)에 대해서 re-embedding하고, 그 안에서 reranking을 통해 TopK문서 추출. 10%의 오버헤드 발생하지만 계속 학습되는 가운데 L개 문서 중에서 TopK가 항상 있을 거란 보당이 없고, L개 문서 중에 Top K를 다시 뽑는 re-ranking도 하나의 추가 task이다. 
+- Query-side fine-tuning: 마지막 전략은, 인코딩 된 쿼리와 문서를 분리 시킴. 문서 인코더는 fix하고 쿼리 인코더만 학습. 문서 임베딩은 고정임으로 index업데이트가 필요없으므로 오버헤드는 미 발생. (Retreiver학습 다 끝난 다음에 다시 indexing하는 듯?) 
 
 ## Experiment 
 ### 4.1 Benchmarks
-
+- Knowledge-Intensive Launguage Tasks(KILT): 11 datasets 5 tasks; QA (NaturalQuestion, TriviaQA, HotpotQA), slot filling (Zero Shot RE, T-REx), entity linking (AIDA, CoNLL-YAGO), dialog (Wizard of Wikipedia), fact checking (FEVER)
+- Massively-Mutitask Language Understanding (MMLU): 57 multi-choice question anwering datasets. 각 도메인에 대해 zero-shot, multi-task few-shot, transfer learning (다른 multi-choice QA task로 학습한 걸 test)
+- Additional benchmarks: open-domain NaturalQuestions, TriviaQA. TempLAMA (time-sensitive cloze question; 2017-2020)
 ### 4.2 Technical details 
+- Pre-training: Retriever는 BERT-based contirever initialize, LM은 unlabed text로만 학습된 T5 pretrained weight 활용 (있는거). Retrieve document는 20개. 
+- Fine-tuning: downstream task수행을 위해 fine-tuning수행. ablation study를 위해 iteration 고정. 50 iter (64-shot), 200 iter(1024-shot). 
+- Unlabed datasets: Wikipedia dump 사용 (22.12.20 ver). section 별로 나누고, 긴 section은 200 words이상 포함하게 동일 size의 passage로 자름. 37M passage (평균 78 words) 데이터 확보. crawl dmp (20.10.00 ver) 활용. 총 350M passage. 
 
 ### 4.3 Pre-training loss and tasks
 
+- RQ1. Retriever과 LM 동시에 학습 (jointly)시키면 few-shot 성능이 올라가나? 
+- 네
+- RQ2. Retriever 학습 시키기 위한 가장 좋은 loss function은? 
+- 4가지 통계적 차이 없음. 그래서 Perplexity Distillation 선택 (ADist, EMDR보다 안정적이고, LOOP보다 계산량 적음)
+
+
+<center><img src="https://user-images.githubusercontent.com/16963245/190844719-f681154d-045e-4d00-ba56-a08088c4713c.png" width="90%" height="50%"></center>
+Table1을 보면, Closed-book (non-augmented T5)가 가장 성능이 안좋음. No joint와 그 아래 joint를 비교하면 Joint가 상대적으로 성능 좋음. 다만 MLM외에는 Fiexed retreiver과 4개의 loss로 학습 시킨 것 간의 차이가 별로 없음. few-shot task는 LM에 가장 큰 영향을 받는다. 4개의 loss들 간에는 크게 차이 없음. 
+
+Pretraining은 MLM이 성능이 좋아서 그걸로 선택, Index (Wiki, Commoncraw)와 Training data(Wiki, CC) 조합에 대한 설명은 생략 (실험적으로 조합 선택)
 ### 4.4 Fine-tuning
+- RQ3. 제한된 학습 데이터로 Atlas를 어떻게 효과적으로 fine-tune시킬 것인가? 
+<center><img src="https://user-images.githubusercontent.com/16963245/190845044-4c93b72d-0aae-4943-a685-5089e7d2fc64.png" width="90%" height="50%"></center>
 
+64-, 1024-shot을 위해 fine-tuning할 때 retreiver를 fiex해 두는것은 성능 저하를 일으켰다. 앞서 제안한 방법 중 re-ranking 방식은 full-text update와 비슷한 성능을 보였고, Query-side fine-tuning은 64-shot에서 성능이 좋았다. example이 적을 때는 Query-side fine tuning을 example이 많을 때에는 Standard fine-tuning을 활용함. 
 ### 4.5 Training and evaluating Atlas 
+#### 1) MLM 
+<center><img src="https://user-images.githubusercontent.com/16963245/190845598-a701f889-e229-425f-838d-c9b52a19f53c.png" width="90%" height="50%"></center>
+T5만 쓴거는 4지선다 MMLU의 random 성능(25%)를 겨우 상위한다. Atlas는 770M parameter만 사용해도 40%정도 성능이 나옴.
+데이터가 많아 질 수록 (5-shot -> 5shot multi-task -> full) 모두 성능은 좋아지나, Atlas만 multi-task 50shot에서 성능이 떨어지는데 이는 paremeter가 적어서 여러 task끼리 synerge를 내게 학습하기 어려웠을 것으로 생각된다. 
+데이터가 많아 질 수록 성능은 모두 향상되나, 그 gap은 유지 되어 Atlas의 성능 LM만 쓸때보다 좋음을 알 수 있다. 
 
+<center><img src="https://user-images.githubusercontent.com/16963245/190845716-9ba0f5d3-608b-44e4-864e-225ce5d62dda.png" width="90%" height="50%"></center>
+zero-shot은 random보다 좋음. 
+다른 LM모델 (GPT-3, Chincilla), RAG (Gopher)과 비교했을때 GPT3보단 좋지만 Chicilla보단 떨어짐. Full learning으로 가면 Atlas가 모델 parameter가 적음에도 성능이 좋음. 
 
-### Some great subheading (h3)
+#### 2) QA 
+Atlas는 특히 QA 테스크에서 높은 성능을 보임. Retreiver-augmented architecture의 장점을 보여줌. 
 
-## REFERENCE
+GPT-3, PaLM등 거대 언어 모델 대비 높은 성능을 보여줬으며, RA 모델인 Gopher (50 pasage retreive한 후, 4개의 answer 생성, re-ranking 통해 최종 answer선택) 보다 25배 적은 파라미터인데도 성능이 더 좋음. 
+<center><img src="https://user-images.githubusercontent.com/16963245/190845826-558a5317-f9e4-4532-bb7d-aa13af4c166c.png" width="90%" height="50%"></center>
 
-- Retrieval Augmented architecture: REALM: Retrieval-Augmented Language Model Pre-Training (https://arxiv.org/abs/2002.08909)
+#### 4) FEVER 
+15-shot에서 Gopher보다 5.1높은 56.2% 성능 보임. full learning에서 ProoFVer (sentence-leve annotation으로 retriever를 학습) 보다 1.5% 낮지만, PrroFVer가 학습한데로 FEVER가 제시한 Wiki corpus로 학습하면 (Atlas는 CCNet의 wiki corpus로 학습) 80.1%로 SOTA임. 
+<center><img src="https://user-images.githubusercontent.com/16963245/190846078-08f38b6c-0744-423b-bc24-e94b7d7bdee8.png" width="90%" height="50%"></center>
+
+#### 5) KILT 
+Atlas가 64-shot setting에서 ADIA는 random 상회, FEVER 는 SOTA대비 2-2.5포인트 밑, Zeroshot RE는 SOTA들 보다 높음 
+
+Full train setting에서는 T-REx, zsRE, TQA 3개 빼고 SOTA고 3개도 다른 SOTA대비 3% 내 정확도. 
+<center><img src="https://user-images.githubusercontent.com/16963245/190846231-6aae58e0-60a8-44e3-a150-0dba6c34b4c5.png" width="90%" height="50%"></center>
+
+## 느낀점 
+아. 길어서 읽느라 힘들었다. 
+
+Retrieval-augmented architecture에 대해 이해할 수 있었고, 제시한 loss 4개가 재밌었다. 결과는 언제나 논문결과가 그렇듯 이리 저리 condition을 바꿔서 SOTA대비 더 좋다라고 나왔지만 REALM논문이 few-shot setting에 대해 연구를 안한거말고 크게 차이가 있는지는 REAML을 읽어봐야겠다. 
+
