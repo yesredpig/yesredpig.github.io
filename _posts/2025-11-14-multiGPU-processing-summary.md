@@ -5,14 +5,13 @@ date: 2025-11-14 10:00:00 +0900
 categories: [GPU, HPC, MPI, NCCL, NVSHMEM]
 ---
 
-This post provides a comprehensive overview of how a **2D Jacobi solver** can be scaled from a single GPU to multiple GPUs.  
-It covers domain decomposition, halo exchange, and three major communication frameworks:
+This post summarizes the content covered in the following YouTube video from **NVIDIA GPU Mode channel**, titled **"Multi-GPU Programming"**.  
+🔗 **Video link:** https://www.youtube.com/watch?v=bqL1WC3AKNA
 
+This lecture provides a comprehensive overview of how a **2D Jacobi solver** can be scaled from a single GPU to multiple GPUs.  
 - **MPI** – traditional two-sided communication  
 - **NCCL** – GPU-centric, stream-based collective communication  
-- **NVSHMEM** – PGAS-style one-sided communication with in-kernel operations  
-
-All diagrams shown below illustrate key concepts such as symmetric heaps, GPU-initiated communication, stencil updates, domain decomposition strategies, and GPUDirect.
+- **NVSHMEM** – PGAS-style one-sided communication with in-kernel operations 
 
 ---
 
@@ -207,9 +206,3 @@ This yields:
 | **NCCL** | Two-sided but GPU-driven | Stream-based, optimized for NVLink/NVSwitch | Overlap via high/low priority streams |
 | **NVSHMEM** | One-sided PGAS | In-kernel puts/gets, symmetric heap | Fully fused kernel, highest scalability |
 
----
-
-If you want, I can also generate:  
-✔ polished SVG diagrams,  
-✔ step-by-step pseudocode for all three implementations,  
-✔ or split this post into a multi-part blog series.
